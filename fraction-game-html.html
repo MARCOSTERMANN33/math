@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu des Fractions</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 36rem;
+            padding: 1.5rem;
+        }
+
+        .card-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .fraction.large {
+            font-size: 1.5rem;
+        }
+
+        .fraction-line {
+            height: 2px;
+            width: 2rem;
+            background-color: currentColor;
+            margin: 0.25rem 0;
+        }
+
+        .question-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            font-size: 1.5rem;
+        }
+
+        .choices-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .choice-button {
+            border: 1px solid #e2e8f0;
+            background: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            height: 6rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .choice-button:hover {
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .message.success {
+            background-color: #d1fae5;
+            color: #047857;
+        }
+
+        .message.error {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+
+        .restart-button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1.125rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .restart-button:hover {
+            background-color: #2563eb;
+        }
+
+        .game-over {
+            text-align: center;
+        }
+
+        .trophy {
+            color: #eab308;
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="game-container"></div>
+
+    <script>
+        class FractionGame {
+            constructor(container) {
+                this.container = container;
+                this.score = 0;
+                this.questionNumber = 1;
+                this.message = '';
+                this.messageType = '';
+                this.gameOver = false;
+                this.question = null;
+                
+                this.init();
+            }
+
+            pgcd(a, b) {
+                while (b !== 0) {
+                    let t = b;
+                    b = a % b;
+                    a = t;
+                }
+                return a;
+            }
+
+            simplifyFraction(num, den) {
+                const diviseur = this.pgcd(Math.abs(num), Math.abs(den));
+                return {
+                    num: num / diviseur,
+                    den: den / diviseur
+                };
+            }
+
+            addFractions(f1, f2) {
+                const num = f1.num * f2.den + f2.num * f1.den;
+                const den = f1.den * f2.den;
+                return this.simplifyFraction(num, den);
+            }
+
+            subtractFractions(f1, f2) {
+                const num = f1.num * f2.den - f2.num * f1.den;
+                const den = f1.den * f2.den;
+                return this.simplifyFraction(num, den);
+            }
+
+            multiplyFractions(f1, f2) {
+                const num = f1.num * f2.num;
+                const den = f1.den * f2.den;
+                return this.simplifyFraction(num, den);
+            }
+
+            randomNumber(min, max) {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+
+            generateChoices(correctAnswer) {
+                let choices = [correctAnswer];
+                while (choices.length < 4) {
+                    const wrongNum = correctAnswer.num + this.randomNumber(-2, 2);
+                    const wrongDen = correctAnswer.den + this.randomNumber(-2, 2);
+                    if (wrongDen !== 0) {
+                        const wrongAnswer = this.simplifyFraction(wrongNum, wrongDen);
+                        if (!choices.some(c => c.num === wrongAnswer.num && c.den === wrongAnswer.den)) {
+                            choices.push(wrongAnswer);
+                        }
+                    }
+                }
+                return choices.sort(() => Math.random() - 0.5);
+            }
+
+            generateQuestion() {
+                const operations = ['+', '-', '×'];
+                const operation = operations[this.randomNumber(0, 2)];
+                
+                let fraction1 = {
+                    num: this.randomNumber(1, 6),
+                    den: this.randomNumber(2, 6)
+                };
+                
+                let fraction2 = {
+                    num: this.randomNumber(1, 6),
+                    den: this.randomNumber(2, 6)
+                };
+
+                let correctAnswer;
+                switch (operation) {
+                    case '+':
+                        correctAnswer = this.addFractions(fraction1, fraction2);
+                        break;
+                    case '-':
+                        correctAnswer = this.subtractFractions(fraction1, fraction2);
+                        break;
+                    case '×':
+                        correctAnswer = this.multiplyFractions(fraction1, fraction2);
+                        break;
+                }
+
+                return {
+                    fraction1,
+                    fraction2,
+                    operation,
+                    answer: correctAnswer,
+                    choices: this.generateChoices(correctAnswer)
+                };
+            }
+
+            createFractionElement(fraction, isLarge = false) {
+                return `
+                    <div class="fraction ${isLarge ? 'large' : ''}">
+                        <div>${fraction.num}</div>
+                        <div class="fraction-line"></div>
+                        <div>${fraction.den}</div>
+                    </div>
+                `;
+            }
+
+            checkAnswer(selectedAnswer) {
+                const isCorrect = 
+                    selectedAnswer.num === this.question.answer.num && 
+                    selectedAnswer.den === this.question.answer.den;
+
+                if (isCorrect) {
+                    this.score++;
+                    this.message = 'Bravo ! C\'est la bonne réponse !';
+                    this.messageType = 'success';
+                } else {
+                    this.message = 'Pas tout à fait... La bonne réponse était :';
+                    this.messageType = 'error';
+                }
+
+                this.render();
+
+                setTimeout(() => {
+                    if (this.questionNumber === 10) {
+                        this.gameOver = true;
+                    } else {
+                        this.questionNumber++;
+                        this.question = this.generateQuestion();
+                        this.message = '';
+                    }
+                    this.render();
+                }, 2000);
+            }
+
+            renderGameOver() {
+                let message = '';
+                if (this.score === 10) message = '🎉 Perfect ! Tu es un champion des fractions !';
+                else if (this.score >= 7) message = 'Très bien ! Continue comme ça !';
+                else if (this.score >= 4) message = 'Pas mal ! Avec un peu plus d\'entraînement, tu vas t\'améliorer.';
+                else message = 'Continue à t\'entraîner, tu vas progresser !';
+
+                this.container.innerHTML = `
+                    <div class="game-over">
+                        <div class="card-header">
+                            <div class="card-title">Partie terminée !</div>
+                        </div>
+                        <div class="trophy">🏆</div>
+                        <h2>Score final : ${this.score}/10</h2>
+                        <p>${message}</p>
+                        <button class="restart-button" onclick="game.restart()">Rejouer</button>
+                    </div>
+                `;
+            }
+
+            render() {
+                if (this.gameOver) {
+                    this.renderGameOver();
+                    return;
+                }
+
+                let messageHtml = '';
+                if (this.message) {
+                    messageHtml = `
+                        <div class="message ${this.messageType}">
+                            ${this.message}
+                            ${this.messageType === 'error' ? this.createFractionElement(this.question.answer) : ''}
+                        </div>
+                    `;
+                }
+
+                this.container.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-title">Jeu des Fractions</div>
+                        <div>Question ${this.questionNumber}/10 - Score: ${this.score}</div>
+                    </div>
+                    <div class="question-display">
+                        ${this.createFractionElement(this.question.fraction1, true)}
+                        <span>${this.question.operation}</span>
+                        ${this.createFractionElement(this.question.fraction2, true)}
+                        <span>=</span>
+                        <span>?</span>
+                    </div>
+                    <div class="choices-grid">
+                        ${this.question.choices.map((choice, index) => `
+                            <button 
+                                class="choice-button"
+                                onclick="game.checkAnswer({num: ${choice.num}, den: ${choice.den}})"
+                            >
+                                ${this.createFractionElement(choice)}
+                            </button>
+                        `).join('')}
+                    </div>
+                    ${messageHtml}
+                `;
+            }
+
+            restart() {
+                this.score = 0;
+                this.questionNumber = 1;
+                this.gameOver = false;
+                this.message = '';
+                this.question = this.generateQuestion();
+                this.render();
+            }
+
+            init() {
+                this.question = this.generateQuestion();
+                this.render();
+            }
+        }
+
+        const game = new FractionGame(document.getElementById('game-container'));
+    </script>
+</body>
+</html>
